@@ -349,7 +349,10 @@ function tick(){
     const big=card.querySelector('.big'), sub=card.querySelector('.sub'), btn=card.querySelector('.take');
     if(s.ready){
       big.classList.add('ready'); setText(big,'OK to take now');
-      setText(sub, s.last ? `Last dose was ${fmtDur(now-s.last.when)} ago` : 'No doses logged yet');
+      const over=now-s.next;   // counts up from the moment the dose became OK
+      setText(sub, !s.last ? 'No doses logged yet'
+        : over<DAY ? `OK since ${fmtWhen(s.next,now)} — <b>${fmtClock(over)}</b> ago`
+        : `OK since ${fmtWhen(s.next,now)}`);
       card.querySelector('.bar i').style.width='100%';
       btn.classList.remove('wait'); setText(btn,`Log ${m.name}`);
     }else{
