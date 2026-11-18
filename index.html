@@ -1,0 +1,544 @@
+<!doctype html>
+<!-- Pain Med Log — standalone static PWA (localStorage). Sibling of tooth-pain-tracker.
+     Host on GitHub Pages, open in Safari, Share -> Add to Home Screen. -->
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Med Log">
+<meta name="theme-color" content="#F7F2E9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#17161A" media="(prefers-color-scheme: dark)">
+<title>Pain Med Log</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F7F2E9; --card:#FFFDF8; --ink:#23201B; --muted:#7A746A; --line:#E6DECF;
+    --tyl:#3B5B8A; --tyl-soft:#DFE7F3; --ibu:#A8552F; --ibu-soft:#F6E4D8; --on-m:#fff;
+    --ok:#2F7A5B; --warn:#B5552F; --warn-soft:#FBEFE6; --warn-line:#EAD2BE;
+    --shadow:0 1px 2px rgba(35,32,27,.06),0 8px 24px rgba(35,32,27,.06);
+    --r:18px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#17161A; --card:#211F25; --ink:#EDE9E1; --muted:#9A948A; --line:#37343C;
+      --tyl:#8DB0E6; --tyl-soft:#25324A; --ibu:#E59A72; --ibu-soft:#45291C; --on-m:#17161A;
+      --ok:#6CC79C; --warn:#E59A72; --warn-soft:#3A2519; --warn-line:#5A3826;
+      --shadow:0 1px 2px rgba(0,0,0,.3);
+    }
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0}
+  body{
+    font-family:"Hanken Grotesk",system-ui,sans-serif;background:var(--bg);color:var(--ink);
+    -webkit-font-smoothing:antialiased;line-height:1.45;
+    padding:0 0 calc(86px + env(safe-area-inset-bottom));
+  }
+  button{touch-action:manipulation}
+  .wrap{max-width:520px;margin:0 auto;padding:0 16px}
+  header{padding:max(18px,env(safe-area-inset-top)) 0 6px;text-align:center}
+  header h1{font-family:"Fraunces",serif;font-weight:500;font-size:24px;margin:0;letter-spacing:-.01em}
+
+  /* ---- med cards ---- */
+  .med{--m:var(--tyl);--m-soft:var(--tyl-soft);
+    background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+    padding:15px 16px 16px;margin:12px 0;box-shadow:var(--shadow)}
+  .med[data-med=ibuprofen]{--m:var(--ibu);--m-soft:var(--ibu-soft)}
+  .med .top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+  .med .name{font-family:"Fraunces",serif;font-size:21px;font-weight:500}
+  .med .every{color:var(--muted);font-size:12.5px;white-space:nowrap}
+  .status{margin:8px 0 2px;min-height:62px;display:flex;flex-direction:column;justify-content:center}
+  .status .big{font-size:34px;font-weight:700;letter-spacing:-.01em;line-height:1.1;
+    font-variant-numeric:tabular-nums}
+  .status .big.ready{font-size:24px;color:var(--ok)}
+  .status .sub{color:var(--muted);font-size:13.5px;margin-top:3px}
+  .status .sub b{color:var(--ink);font-weight:600}
+  .bar{height:6px;border-radius:99px;background:var(--line);overflow:hidden;margin:8px 0 12px}
+  .bar i{display:block;height:100%;background:var(--m);border-radius:99px;width:0}
+  .take{width:100%;appearance:none;border:1.5px solid var(--m);background:var(--m);color:var(--on-m);
+    font:inherit;font-weight:700;font-size:17px;border-radius:15px;min-height:60px;cursor:pointer;
+    transition:transform .08s,filter .12s}
+  .take:active{transform:scale(.98);filter:brightness(.95)}
+  .take.wait{background:transparent;color:var(--m);font-size:15px;min-height:50px}
+  .foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:11px;
+    font-size:13px;color:var(--muted)}
+  .foot button{appearance:none;background:none;border:none;font:inherit;color:inherit;padding:4px 0;
+    cursor:pointer;text-align:left;text-decoration:underline;text-decoration-color:var(--line);
+    text-underline-offset:3px}
+  .dots{display:flex;align-items:center;gap:5px;white-space:nowrap}
+  .dots i{width:11px;height:11px;border-radius:50%;border:1.5px solid var(--m);display:block}
+  .dots i.on{background:var(--m)}
+  .dots.max{color:var(--warn);font-weight:700}
+  .dots.max i{border-color:var(--warn)} .dots.max i.on{background:var(--warn)}
+  .dots span{margin-left:3px}
+
+  /* ---- pain scale ---- */
+  .field{margin:20px 0}
+  .field>label{display:block;font-weight:600;font-size:14px;margin:0 2px 9px}
+  .field .hint{color:var(--muted);font-weight:400;font-size:12.5px}
+  .scale{display:grid;grid-template-columns:repeat(11,1fr);gap:4px}
+  .pip{appearance:none;border:1.5px solid var(--line);background:var(--card);border-radius:10px;
+       height:48px;padding:0;font:inherit;font-weight:600;font-size:13.5px;color:var(--muted);cursor:pointer;transition:.1s}
+  .pip:active{transform:scale(.9)}
+  .pip.on{color:#fff;border-color:transparent}
+  .scale-cap{display:flex;justify-content:space-between;color:var(--muted);font-size:11.5px;margin-top:6px;padding:0 2px}
+  .painlast{color:var(--muted);font-size:13px;margin:8px 2px 0;min-height:19px}
+
+  .note{text-align:center;color:var(--muted);font-size:11.5px;margin:18px 12px 0}
+
+  /* ---- shared controls ---- */
+  input[type=datetime-local]{
+    width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--card);
+    border:1.5px solid var(--line);border-radius:13px;padding:13px 14px;outline:none;min-height:50px;
+  }
+  input:focus{border-color:var(--tyl)}
+  .save{width:100%;border:none;background:var(--tyl);color:var(--on-m);font:inherit;font-weight:700;
+    font-size:16px;border-radius:15px;min-height:56px;cursor:pointer}
+  .save:active{transform:scale(.98)}
+  .ghost{background:none;border:1.5px solid var(--line);color:var(--muted);font:inherit;font-weight:600;
+    border-radius:13px;min-height:48px;padding:0 16px;cursor:pointer}
+  .del{background:none;border:1.5px solid var(--warn-line);color:var(--warn);min-height:56px;border-radius:15px;
+    font:inherit;font-weight:700;font-size:15px;padding:0 18px;cursor:pointer}
+  .row2{display:flex;gap:10px;margin-top:14px}
+  .row2>*{flex:1}
+  .row2>.del{flex:0 0 auto}
+  .quick{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
+  .quick button{min-height:42px;padding:0 4px;font-size:13px}
+
+  nav{position:fixed;left:0;right:0;bottom:0;background:color-mix(in srgb,var(--bg) 92%,transparent);
+      backdrop-filter:saturate(1.4) blur(10px);-webkit-backdrop-filter:saturate(1.4) blur(10px);
+      border-top:1px solid var(--line);padding:8px 0 calc(8px + env(safe-area-inset-bottom));z-index:30}
+  .tabs{max-width:520px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 18px}
+  .tab{appearance:none;border:none;background:none;font:inherit;font-weight:600;font-size:13px;color:var(--muted);
+    padding:8px;border-radius:12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
+  .tab svg{width:22px;height:22px}
+  .tab.on{color:var(--tyl);background:var(--tyl-soft)}
+
+  .view{display:none}
+  .view.on{display:block}
+
+  /* ---- history ---- */
+  .hhead{display:flex;justify-content:space-between;align-items:center;margin:14px 2px 4px}
+  .hhead h2{font-family:"Fraunces",serif;font-weight:500;font-size:20px;margin:0}
+  .day{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin:20px 2px 6px}
+  .day b{font-size:14px}
+  .day span{color:var(--muted);font-size:12.5px;text-align:right}
+  .list{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+  .entry{appearance:none;width:100%;border:none;background:none;font:inherit;color:inherit;text-align:left;
+    display:flex;align-items:center;gap:11px;padding:12px 15px;cursor:pointer;min-height:52px}
+  .entry+.entry{border-top:1px solid var(--line)}
+  .entry:active{background:var(--bg)}
+  .entry .t{color:var(--muted);font-size:13px;width:68px;flex:none;font-variant-numeric:tabular-nums}
+  .entry .what{font-weight:600;font-size:15px;flex:1;display:flex;align-items:center;gap:8px}
+  .swatch{width:10px;height:10px;border-radius:50%;flex:none;background:var(--muted)}
+  .swatch.tylenol{background:var(--tyl)} .swatch.ibuprofen{background:var(--ibu)}
+  .swatch.pain{background:none;border:1.5px solid var(--muted)}
+  .tag{font-size:12px;font-weight:700;color:#fff;border-radius:999px;padding:3px 9px;white-space:nowrap}
+  .empty{text-align:center;color:var(--muted);padding:48px 20px;font-size:14.5px}
+  .backup{background:var(--warn-soft);border:1px solid var(--warn-line);color:var(--warn);border-radius:13px;
+    padding:11px 14px;font-size:13px;font-weight:600;margin:12px 0;display:none;align-items:center;gap:10px}
+  .backup.show{display:flex}
+  .backup button{margin-left:auto;background:var(--warn);color:var(--on-m);border:none;font:inherit;font-weight:700;
+    font-size:13px;border-radius:9px;padding:8px 12px;cursor:pointer;white-space:nowrap}
+
+  /* ---- sheets ---- */
+  .sheet{position:fixed;inset:0;background:rgba(20,18,15,.5);z-index:40;display:none;align-items:flex-end}
+  .sheet.on{display:flex}
+  .panel{background:var(--bg);width:100%;max-width:520px;margin:0 auto;border-radius:22px 22px 0 0;
+    max-height:92vh;overflow:auto;padding:8px 18px calc(24px + env(safe-area-inset-bottom));
+    animation:up .24s cubic-bezier(.2,.8,.2,1) both}
+  @keyframes up{from{transform:translateY(100%)}to{transform:none}}
+  .handle{width:38px;height:4px;background:var(--line);border-radius:99px;margin:8px auto 4px}
+  .panel h2{font-family:"Fraunces",serif;font-weight:500;font-size:22px;margin:8px 2px 2px}
+  .panel .sub{color:var(--muted);font-size:14px;margin:4px 2px 4px}
+
+  .toast{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom));transform:translateX(-50%);
+    background:var(--ink);color:var(--bg);font-size:14px;font-weight:600;padding:6px 8px 6px 18px;border-radius:999px;
+    z-index:60;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;
+    display:flex;align-items:center;gap:8px;white-space:nowrap;min-height:44px}
+  .toast.on{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(-4px)}
+  .toast button{appearance:none;border:none;background:color-mix(in srgb,var(--bg) 18%,transparent);color:inherit;
+    font:inherit;font-weight:700;border-radius:999px;padding:7px 14px;cursor:pointer}
+  .toast button[hidden]{display:none}
+  .toast:has(button[hidden]){padding-right:18px}
+  @media (prefers-reduced-motion: reduce){ *{animation:none!important;transition:none!important} }
+</style>
+
+<header><div class="wrap"><h1>Pain Med Log</h1></div></header>
+
+<div class="view on" id="view-now">
+  <div class="wrap">
+    <div id="cards"></div>
+
+    <div class="field">
+      <label id="painLabel">Pain right now? <span class="hint">optional — tap to log</span></label>
+      <div class="scale" id="painScale"></div>
+      <div class="scale-cap"><span>none</span><span>worst</span></div>
+      <div class="painlast" id="painLast"></div>
+    </div>
+
+    <p class="note">Timers use the intervals you set: Tylenol every 4 h (max 4 in 24 h), ibuprofen every 6 h. Follow your label or doctor if they say otherwise.</p>
+  </div>
+</div>
+
+<div class="view" id="view-history">
+  <div class="wrap">
+    <div class="hhead">
+      <h2>History</h2>
+      <div style="display:flex;gap:8px">
+        <button class="ghost" id="importBtn" style="min-height:40px">Restore</button>
+        <button class="ghost" id="exportBtn" style="min-height:40px">Back up</button>
+      </div>
+    </div>
+    <div class="backup" id="backupNag">
+      <span id="nagText"></span>
+      <button id="nagBtn">Back up now</button>
+    </div>
+    <div id="list"></div>
+    <input type="file" id="importFile" accept="application/json,.json" style="display:none">
+  </div>
+</div>
+
+<nav><div class="tabs">
+  <button class="tab on" data-view="now">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg>
+    Now
+  </button>
+  <button class="tab" data-view="history">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h18v4H3zM5 8v12h14V8"/><path d="M9 12h6"/></svg>
+    History
+  </button>
+</div></nav>
+
+<!-- edit sheet -->
+<div class="sheet" id="editSheet"><div class="panel">
+  <div class="handle"></div>
+  <h2 id="e-title">—</h2>
+  <div class="field">
+    <label for="e-when">When</label>
+    <input type="datetime-local" id="e-when">
+    <div class="quick" id="e-quick">
+      <button class="ghost" data-shift="-15">−15 min</button>
+      <button class="ghost" data-shift="-30">−30 min</button>
+      <button class="ghost" data-shift="-60">−1 hr</button>
+      <button class="ghost" data-shift="now">Now</button>
+    </div>
+  </div>
+  <div class="field">
+    <label>Pain level <span class="hint" id="e-painhint">optional — tap again to clear</span></label>
+    <div class="scale" id="e-scale"></div>
+  </div>
+  <div class="row2">
+    <button class="del" id="e-del">Delete</button>
+    <button class="save" id="e-save">Save changes</button>
+  </div>
+  <button class="ghost" id="e-close" style="width:100%;margin-top:12px">Close</button>
+</div></div>
+
+<!-- confirm sheet -->
+<div class="sheet" id="confirmSheet"><div class="panel">
+  <div class="handle"></div>
+  <h2 id="c-title">—</h2>
+  <p class="sub" id="c-msg"></p>
+  <div class="row2">
+    <button class="ghost" id="c-no" style="min-height:56px">Cancel</button>
+    <button class="del" id="c-yes" style="flex:1">Log anyway</button>
+  </div>
+</div></div>
+
+<div class="toast" id="toast"><span id="toastMsg"></span><button id="toastUndo" hidden>Undo</button></div>
+
+<script>
+/* ---------- config ---------- */
+const H=3600e3, DAY=24*H;
+const MEDS={
+  tylenol:  {name:'Tylenol',   interval:4*H, max:4},
+  ibuprofen:{name:'Ibuprofen', interval:6*H, max:null}
+};
+const ATTACH_WINDOW=10*60e3;   // a pain tap within 10 min of a dose attaches to that dose
+const REPLACE_WINDOW=2*60e3;   // a second pain tap within 2 min corrects the first
+
+/* ---------- storage ---------- */
+/* events: {id, type:'dose', med, when(ms), pain?}  |  {id, type:'pain', when(ms), pain} */
+const Store={
+  KEY:'medlog:events:v1', METAKEY:'medlog:meta:v1',
+  load(){ try{ return clean(JSON.parse(localStorage.getItem(this.KEY)||'[]')) }catch(e){ return [] } },
+  save(){ try{ localStorage.setItem(this.KEY, JSON.stringify(events)); const m=this.meta(); m.lastSave=Date.now(); this.setMeta(m); }
+          catch(e){ toast('Could not save — storage is blocked') } },
+  meta(){ try{ return JSON.parse(localStorage.getItem(this.METAKEY)||'{}') }catch(e){ return {} } },
+  setMeta(m){ try{ localStorage.setItem(this.METAKEY, JSON.stringify(m)) }catch(e){} }
+};
+function validPain(p){ return Number.isInteger(p) && p>=0 && p<=10 }
+function clean(arr){
+  if(!Array.isArray(arr)) return [];
+  const out=[];
+  for(const e of arr){
+    if(!e || typeof e.id!=='string' || !Number.isFinite(e.when)) continue;
+    if(e.type==='dose' && Object.hasOwn(MEDS,e.med)) out.push({id:e.id,type:'dose',med:e.med,when:e.when,pain:validPain(e.pain)?e.pain:null});
+    else if(e.type==='pain' && validPain(e.pain)) out.push({id:e.id,type:'pain',when:e.when,pain:e.pain});
+  }
+  return out.sort((a,b)=>b.when-a.when);
+}
+let events=Store.load();
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const newId=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const sortEvents=()=>events.sort((a,b)=>b.when-a.when);
+const painColor=v=>`hsl(${Math.round(140-v*13.5)} 55% 40%)`;
+
+/* ---------- formatting ---------- */
+const fmtTime=t=>new Date(t).toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+function fmtClock(ms){ const s=Math.max(0,Math.ceil(ms/1000)); const h=Math.floor(s/3600), m=Math.floor(s%3600/60), x=s%60;
+  return `${h}:${String(m).padStart(2,'0')}:${String(x).padStart(2,'0')}`; }
+function fmtDur(ms){ const m=Math.max(0,Math.round(ms/60e3)); const h=Math.floor(m/60);
+  return h ? `${h}h ${m%60}m` : `${m}m`; }
+const dayKey=t=>{ const d=new Date(t); return d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate(); };
+function fmtWhen(t,now){ // clock time, plus the day when it is not today
+  const k=dayKey(t), d=new Date(now); if(k===dayKey(now)) return fmtTime(t);
+  d.setDate(d.getDate()+1); if(k===dayKey(d)) return fmtTime(t)+' tomorrow';
+  d.setDate(d.getDate()-2); if(k===dayKey(d)) return fmtTime(t)+' yesterday';
+  return new Date(t).toLocaleDateString([], {month:'short',day:'numeric'})+', '+fmtTime(t);
+}
+function toLocalInput(t){ const d=new Date(t); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,16); }
+
+/* ---------- dose rules ---------- */
+function medState(key, now){
+  const med=MEDS[key];
+  const doses=events.filter(e=>e.type==='dose' && e.med===key && e.when<=now);   // newest first
+  const last=doses[0]||null;
+  let next=last ? last.when+med.interval : 0, start=last?last.when:0, reason='interval';
+  let count=null;
+  if(med.max){
+    const win=doses.filter(e=>e.when>now-DAY);
+    count=win.length;
+    if(count>=med.max){
+      const cap=win[med.max-1].when+DAY;        // when the oldest of the last `max` doses leaves the 24 h window
+      if(cap>next){ next=cap; reason='max'; }
+    }
+  }
+  return {med,last,next,start,reason,count,ready:now>=next};
+}
+
+/* ---------- Now view ---------- */
+function buildCards(){
+  $('#cards').innerHTML=Object.entries(MEDS).map(([key,m])=>`
+    <section class="med" data-med="${key}">
+      <div class="top"><span class="name">${m.name}</span>
+        <span class="every">every ${m.interval/H} h${m.max?` · max ${m.max} in 24 h`:''}</span></div>
+      <div class="status"><div class="big"></div><div class="sub"></div></div>
+      <div class="bar"><i></i></div>
+      <button class="take">Log ${m.name}</button>
+      <div class="foot"><button class="lastbtn"></button><div class="dots"></div></div>
+    </section>`).join('');
+  $$('.med').forEach(card=>{
+    const key=card.dataset.med;
+    card.querySelector('.take').onclick=()=>tapDose(key);
+    card.querySelector('.lastbtn').onclick=()=>{ const s=medState(key,Date.now()); if(s.last) openEdit(s.last.id); };
+  });
+}
+function setText(el,html){ if(el._h!==html){ el.innerHTML=html; el._h=html; } }
+function tick(){
+  const now=Date.now();
+  $$('.med').forEach(card=>{
+    const key=card.dataset.med, s=medState(key,now), m=s.med;
+    const big=card.querySelector('.big'), sub=card.querySelector('.sub'), btn=card.querySelector('.take');
+    if(s.ready){
+      big.classList.add('ready'); setText(big,'OK to take now');
+      setText(sub, s.last ? `Last dose was ${fmtDur(now-s.last.when)} ago` : 'No doses logged yet');
+      card.querySelector('.bar i').style.width='100%';
+      btn.classList.remove('wait'); setText(btn,`Log ${m.name}`);
+    }else{
+      big.classList.remove('ready'); setText(big,fmtClock(s.next-now));
+      setText(sub, s.reason==='max'
+        ? `<b>24 h limit reached</b> — next OK at <b>${fmtWhen(s.next,now)}</b>`
+        : `until next dose — OK at <b>${fmtWhen(s.next,now)}</b>`);
+      const span=s.next-s.start;
+      card.querySelector('.bar i').style.width=(span>0?Math.min(100,Math.max(0,(now-s.start)/span*100)):0).toFixed(1)+'%';
+      btn.classList.add('wait'); setText(btn,`Log ${m.name} anyway…`);
+    }
+    const lastbtn=card.querySelector('.lastbtn');
+    setText(lastbtn, s.last?`Last: ${fmtWhen(s.last.when,now)}`:'');
+    lastbtn.style.visibility=s.last?'':'hidden';
+    const dots=card.querySelector('.dots');
+    if(m.max){
+      dots.classList.toggle('max',s.count>=m.max);
+      let h=''; for(let i=0;i<Math.max(m.max,s.count);i++) h+=`<i class="${i<s.count?'on':''}"></i>`;
+      setText(dots,h+`<span>${s.count} of ${m.max} in 24 h</span>`);
+    }
+  });
+  renderPainNow(now);
+}
+
+function tapDose(key){
+  const now=Date.now(), s=medState(key,now), m=s.med;
+  if(s.ready){ logDose(key); return; }
+  $('#c-title').textContent=`Too soon for ${m.name}`;
+  $('#c-msg').textContent = s.reason==='max'
+    ? `You have logged ${s.count} doses in the last 24 hours (max ${m.max}). The next one is OK at ${fmtWhen(s.next,now)}, in ${fmtDur(s.next-now)}.`
+    : `Your last dose was ${fmtDur(now-s.last.when)} ago. The next one is OK at ${fmtWhen(s.next,now)}, in ${fmtDur(s.next-now)}.`;
+  $('#c-yes').onclick=()=>{ closeSheets(); logDose(key); };
+  openSheet('#confirmSheet');
+}
+function logDose(key){
+  const e={id:newId(),type:'dose',med:key,when:Date.now(),pain:null};
+  events.unshift(e); sortEvents(); Store.save(); refresh();
+  toast(`${MEDS[key].name} logged`, ()=>removeEvent(e.id));
+}
+function removeEvent(id){ events=events.filter(e=>e.id!==id); Store.save(); refresh(); }
+
+/* ---------- pain ---------- */
+function buildScale(root,onTap){
+  for(let i=0;i<=10;i++){ const b=document.createElement('button'); b.className='pip'; b.textContent=i;
+    b.setAttribute('aria-label',`Pain ${i} of 10`); b.onclick=()=>onTap(i); root.appendChild(b); }
+}
+function paintScale(root,val){
+  [...root.children].forEach((p,i)=>{ const on=i===val; p.classList.toggle('on',on); p.style.background=on?painColor(i):''; });
+}
+function attachTarget(now){ // most recent dose, if just logged and still without a pain level
+  const d=events.find(e=>e.type==='dose');
+  return d && d.pain==null && now-d.when>=0 && now-d.when<ATTACH_WINDOW ? d : null;
+}
+const latestPain=()=>events.find(e=>e.pain!=null)||null;
+function tapPain(v){
+  const now=Date.now(), target=attachTarget(now);
+  if(target){
+    target.pain=v; Store.save(); refresh();
+    toast(`Pain ${v}/10 added to ${MEDS[target.med].name} dose`, ()=>{ target.pain=null; Store.save(); refresh(); });
+    return;
+  }
+  const lp=latestPain();
+  if(lp && now-lp.when<REPLACE_WINDOW && (lp.type==='pain' || now-lp.when<ATTACH_WINDOW)){   // correcting a mis-tap
+    const prev=lp.pain; lp.pain=v; Store.save(); refresh();
+    toast(`Pain changed to ${v}/10`, ()=>{ lp.pain=prev; Store.save(); refresh(); });
+    return;
+  }
+  const e={id:newId(),type:'pain',when:now,pain:v};
+  events.unshift(e); sortEvents(); Store.save(); refresh();
+  toast(`Pain ${v}/10 logged`, ()=>removeEvent(e.id));
+}
+function renderPainNow(now){
+  const target=attachTarget(now), lp=latestPain();
+  setText($('#painLabel'), target
+    ? `Pain right now? <span class="hint">optional — saves with your ${MEDS[target.med].name} dose</span>`
+    : `Pain right now? <span class="hint">optional — tap to log</span>`);
+  const recent=lp && now-lp.when<30*60e3;
+  const key=recent?lp.pain:-1, sc=$('#painScale');
+  if(sc._v!==key){ paintScale(sc,key); sc._v=key; }
+  setText($('#painLast'), lp ? `Last: ${lp.pain}/10 at ${fmtWhen(lp.when,now)}` : '');
+}
+
+/* ---------- history ---------- */
+function renderList(){
+  const L=$('#list'), now=Date.now();
+  if(!events.length){ L.innerHTML=`<div class="empty">Nothing logged yet.<br>Doses and pain levels will show up here.</div>`; return; }
+  const today=dayKey(now), y=new Date(now); y.setDate(y.getDate()-1); const yesterday=dayKey(y);
+  const groups=[]; let g=null;
+  for(const e of events){ const k=dayKey(e.when); if(!g||g.k!==k){ g={k,t:e.when,items:[]}; groups.push(g); } g.items.push(e); }
+  L.innerHTML=groups.map(g=>{
+    const label=g.k===today?'Today':g.k===yesterday?'Yesterday':new Date(g.t).toLocaleDateString([], {weekday:'long',month:'short',day:'numeric'});
+    const counts=Object.entries(MEDS).map(([k,m])=>{ const n=g.items.filter(e=>e.type==='dose'&&e.med===k).length; return n?`${m.name} ×${n}`:''; }).filter(Boolean).join(' · ');
+    return `<div class="day"><b>${label}</b><span>${counts}</span></div><div class="list">`+g.items.map(e=>{
+      const tag=e.pain!=null?`<span class="tag" style="background:${painColor(e.pain)}">${e.type==='dose'?'pain ':''}${e.pain}/10</span>`:'';
+      const what=e.type==='dose'?`<i class="swatch ${e.med}"></i>${MEDS[e.med].name}`:`<i class="swatch pain"></i>Pain check`;
+      return `<button class="entry" data-id="${e.id}"><span class="t">${fmtTime(e.when)}</span><span class="what">${what}</span>${tag}</button>`;
+    }).join('')+`</div>`;
+  }).join('');
+  L.querySelectorAll('.entry').forEach(el=>el.onclick=()=>openEdit(el.dataset.id));
+}
+function backupNeeded(){ const m=Store.meta(); if(!events.length) return false; return !m.lastBackup || (m.lastSave||0)>m.lastBackup; }
+function renderNag(){
+  const nag=$('#backupNag');
+  if(backupNeeded()){ $('#nagText').textContent=Store.meta().lastBackup?'New entries since your last backup.':'No backup yet — entries live only on this phone.'; nag.classList.add('show'); }
+  else nag.classList.remove('show');
+}
+
+/* ---------- edit sheet ---------- */
+let cur=null, curPain=null;
+buildScale($('#e-scale'), v=>{
+  if(cur.type==='pain'){ curPain=v; } else curPain = curPain===v ? null : v;
+  paintScale($('#e-scale'),curPain??-1);
+});
+function openEdit(id){
+  cur=events.find(e=>e.id===id); if(!cur) return;
+  curPain=cur.pain;
+  $('#e-title').textContent=cur.type==='dose'?`${MEDS[cur.med].name} dose`:'Pain check';
+  $('#e-painhint').textContent=cur.type==='dose'?'optional — tap again to clear':'';
+  $('#e-when').value=toLocalInput(cur.when); $('#e-when').max=toLocalInput(Date.now());
+  paintScale($('#e-scale'),curPain??-1);
+  openSheet('#editSheet');
+}
+$$('#e-quick button').forEach(b=>b.onclick=()=>{
+  const inp=$('#e-when'), base=new Date(inp.value).getTime()||Date.now();
+  inp.value=toLocalInput(b.dataset.shift==='now'?Date.now():base+Number(b.dataset.shift)*60e3);
+});
+$('#e-save').onclick=()=>{
+  if(!cur) return;
+  const t=new Date($('#e-when').value).getTime();
+  if(Number.isFinite(t)){
+    // keep the original seconds when the minute was not changed, so an untouched time stays exact
+    cur.when = toLocalInput(t)===toLocalInput(cur.when) ? cur.when : Math.min(t,Date.now());
+  }
+  cur.pain=curPain; sortEvents(); Store.save(); closeSheets(); refresh(); toast('Updated');
+};
+$('#e-del').onclick=()=>{
+  if(!cur) return; const gone=cur;
+  events=events.filter(e=>e.id!==gone.id); Store.save(); closeSheets(); refresh();
+  toast('Deleted', ()=>{ events.push(gone); sortEvents(); Store.save(); refresh(); });
+};
+$('#e-close').onclick=closeSheets; $('#c-no').onclick=closeSheets;
+function openSheet(sel){ $(sel).classList.add('on'); document.body.style.overflow='hidden'; }
+function closeSheets(){ $$('.sheet').forEach(s=>s.classList.remove('on')); document.body.style.overflow=''; cur=null; }
+$$('.sheet').forEach(s=>s.onclick=e=>{ if(e.target===s) closeSheets(); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeSheets(); });
+
+/* ---------- export / import ---------- */
+function doExport(){
+  if(!events.length){ toast('Nothing to back up'); return; }
+  const blob=new Blob([JSON.stringify(events,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`pain-med-log-${toLocalInput(Date.now()).slice(0,10)}.json`; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  const m=Store.meta(); m.lastBackup=Date.now(); Store.setMeta(m); renderNag(); toast('Backup saved');
+}
+$('#exportBtn').onclick=doExport; $('#nagBtn').onclick=doExport;
+$('#importBtn').onclick=()=>$('#importFile').click();
+$('#importFile').onchange=ev=>{
+  const f=ev.target.files[0]; if(!f) return; const r=new FileReader();
+  r.onload=()=>{ try{
+      const raw=JSON.parse(r.result); if(!Array.isArray(raw)) throw 0;
+      const data=clean(raw), byId={}; [...events,...data].forEach(e=>{ byId[e.id]=e; });   // merge, imported wins
+      events=Object.values(byId); sortEvents(); Store.save(); refresh(); toast(`Restored — ${data.length} entries merged`);
+    }catch(e){ toast('Couldn’t read that file'); } ev.target.value=''; };
+  r.readAsText(f);
+};
+
+/* ---------- toast (with undo) ---------- */
+let tT, undoFn=null;
+function toast(msg, undo){
+  $('#toastMsg').textContent=msg; undoFn=undo||null; $('#toastUndo').hidden=!undo;
+  const t=$('#toast'); t.classList.add('on'); clearTimeout(tT); tT=setTimeout(()=>{ t.classList.remove('on'); undoFn=null; }, undo?6000:1800);
+}
+$('#toastUndo').onclick=()=>{ const f=undoFn; undoFn=null; clearTimeout(tT); $('#toast').classList.remove('on'); if(f){ f(); toast('Undone'); } };
+
+/* ---------- wiring ---------- */
+$$('.tab').forEach(t=>t.onclick=()=>{
+  $$('.tab').forEach(x=>x.classList.remove('on')); t.classList.add('on');
+  $$('.view').forEach(v=>v.classList.remove('on')); $('#view-'+t.dataset.view).classList.add('on');
+  window.scrollTo(0,0); refresh();
+});
+function refresh(){ tick(); renderList(); renderNag(); }
+buildCards(); buildScale($('#painScale'),tapPain); refresh();
+setInterval(tick,1000);
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) refresh(); });
+window.addEventListener('pageshow',refresh);
+
+if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+  window.addEventListener('load',()=>{ navigator.serviceWorker.register('sw.js').catch(()=>{}); });
+}
+</script>
+</html>
